@@ -67,8 +67,8 @@ app.post('/webhook', upload.any(), async (req, res) => {
     console.log('\n=== FORWARDING TO VERCEL ===');
     const vercelUrl = 'https://orders.plecticscompanies.com/api/webhook/email-v3';
 
-    // Create FormData for forwarding
-    const fetch = require('node-fetch');
+    // Use axios instead of node-fetch for better compatibility
+    const axios = require('axios');
     const FormData = require('form-data');
     const formData = new FormData();
 
