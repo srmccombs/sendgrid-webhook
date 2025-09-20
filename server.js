@@ -79,29 +79,37 @@ app.post('/webhook', upload.any(), async (req, res) => {
     const FormData = require('form-data');
     const formData = new FormData();
 
-    // Add all fields from the original request
-    Object.keys(req.body).forEach(key => {
-      formData.append(key, req.body[key]);
-    });
-
-    // Add files if present - SendGrid typically uses 'attachment1', 'attachment2', etc.
+    // Process attachments into the format Vercel expects
+    const attachmentsArray = [];
     if (req.files && req.files.length > 0) {
       req.files.forEach((file, index) => {
-        // SendGrid uses 'attachment1', 'attachment2', etc. as field names
-        const fieldName = file.fieldname || `attachment${index + 1}`;
-        console.log(`Adding file as field: ${fieldName}`);
-
-        // Send the file buffer directly with proper metadata
-        formData.append(fieldName, file.buffer, {
+        // Convert file buffer to base64
+        const base64Content = file.buffer.toString('base64');
+        attachmentsArray.push({
+          content: base64Content,
           filename: file.originalname || `attachment${index + 1}.csv`,
-          contentType: file.mimetype || 'text/csv'
+          type: file.mimetype || 'text/csv'
         });
+        console.log(`Processed attachment ${index + 1}: ${file.originalname}`);
       });
+    }
+
+    // Add all fields from the original request
+    Object.keys(req.body).forEach(key => {
+      if (key !== 'attachments') {  // Don't copy the attachment count
+        formData.append(key, req.body[key]);
+      }
+    });
+
+    // Add attachments as a JSON string (this is what Vercel expects)
+    if (attachmentsArray.length > 0) {
+      formData.append('attachments', JSON.stringify(attachmentsArray));
+      console.log(`Sending ${attachmentsArray.length} attachments as JSON`);
     }
 
     // Log what we're sending
     console.log('Form data headers:', formData.getHeaders());
-    console.log('Total attachments being sent:', req.files ? req.files.length : 0);
+    console.log('Total attachments being sent:', attachmentsArray.length);
 
     // Forward to Vercel using axios
     const response = await axios.post(vercelUrl, formData, {
