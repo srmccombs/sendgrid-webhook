@@ -87,15 +87,17 @@ app.post('/webhook', upload.any(), async (req, res) => {
       });
     }
 
-    // Forward to Vercel
-    const response = await fetch(vercelUrl, {
-      method: 'POST',
-      body: formData,
-      headers: formData.getHeaders()
+    // Forward to Vercel using axios
+    const response = await axios.post(vercelUrl, formData, {
+      headers: {
+        ...formData.getHeaders(),
+        'User-Agent': 'Sendlib/1.0'
+      },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity
     });
 
-    const result = await response.json();
-    console.log('Vercel response:', result);
+    console.log('Vercel response:', response.data);
     console.log('Forward successful!');
 
   } catch (error) {
