@@ -36,7 +36,7 @@ app.get('/webhook', (req, res) => {
 });
 
 // POST endpoint for SendGrid Inbound Parse
-app.post('/webhook', upload.any(), (req, res) => {
+app.post('/webhook', upload.any(), async (req, res) => {
   console.log('\n=== WEBHOOK RECEIVED ===');
   console.log('Timestamp:', new Date().toISOString());
   console.log('Headers:', req.headers);
@@ -62,10 +62,50 @@ app.post('/webhook', upload.any(), (req, res) => {
     });
   }
   
+  // Forward to Vercel
+  try {
+    console.log('\n=== FORWARDING TO VERCEL ===');
+    const vercelUrl = 'https://orders.plecticscompanies.com/api/webhook/email-v3';
+
+    // Create FormData for forwarding
+    const fetch = require('node-fetch');
+    const FormData = require('form-data');
+    const formData = new FormData();
+
+    // Add all fields from the original request
+    Object.keys(req.body).forEach(key => {
+      formData.append(key, req.body[key]);
+    });
+
+    // Add files if present
+    if (req.files && req.files.length > 0) {
+      req.files.forEach(file => {
+        formData.append(file.fieldname, file.buffer, {
+          filename: file.originalname,
+          contentType: file.mimetype
+        });
+      });
+    }
+
+    // Forward to Vercel
+    const response = await fetch(vercelUrl, {
+      method: 'POST',
+      body: formData,
+      headers: formData.getHeaders()
+    });
+
+    const result = await response.json();
+    console.log('Vercel response:', result);
+    console.log('Forward successful!');
+
+  } catch (error) {
+    console.error('Failed to forward to Vercel:', error);
+  }
+
   // Always return success to SendGrid
   res.status(200).json({
     success: true,
-    message: 'Webhook received successfully',
+    message: 'Webhook received and forwarded',
     received: {
       from,
       to,
