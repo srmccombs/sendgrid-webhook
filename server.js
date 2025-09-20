@@ -59,9 +59,16 @@ app.post('/webhook', upload.any(), async (req, res) => {
     console.log('\n=== FILES RECEIVED ===');
     req.files.forEach(file => {
       console.log('File:', file.originalname, 'Size:', file.size, 'bytes');
+      console.log('Field name:', file.fieldname);
+      console.log('MIME type:', file.mimetype);
+      // Log first 100 chars of CSV content
+      if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+        const csvContent = file.buffer.toString('utf8').substring(0, 100);
+        console.log('CSV Preview:', csvContent);
+      }
     });
   }
-  
+
   // Forward to Vercel
   try {
     console.log('\n=== FORWARDING TO VERCEL ===');
@@ -77,15 +84,24 @@ app.post('/webhook', upload.any(), async (req, res) => {
       formData.append(key, req.body[key]);
     });
 
-    // Add files if present
+    // Add files if present - SendGrid typically uses 'attachment1', 'attachment2', etc.
     if (req.files && req.files.length > 0) {
-      req.files.forEach(file => {
-        formData.append(file.fieldname, file.buffer, {
-          filename: file.originalname,
-          contentType: file.mimetype
+      req.files.forEach((file, index) => {
+        // SendGrid uses 'attachment1', 'attachment2', etc. as field names
+        const fieldName = file.fieldname || `attachment${index + 1}`;
+        console.log(`Adding file as field: ${fieldName}`);
+
+        // Send the file buffer directly with proper metadata
+        formData.append(fieldName, file.buffer, {
+          filename: file.originalname || `attachment${index + 1}.csv`,
+          contentType: file.mimetype || 'text/csv'
         });
       });
     }
+
+    // Log what we're sending
+    console.log('Form data headers:', formData.getHeaders());
+    console.log('Total attachments being sent:', req.files ? req.files.length : 0);
 
     // Forward to Vercel using axios
     const response = await axios.post(vercelUrl, formData, {
@@ -94,10 +110,12 @@ app.post('/webhook', upload.any(), async (req, res) => {
         'User-Agent': 'Sendlib/1.0'
       },
       maxBodyLength: Infinity,
-      maxContentLength: Infinity
+      maxContentLength: Infinity,
+      timeout: 30000 // 30 second timeout
     });
 
-    console.log('Vercel response:', response.data);
+    console.log('Vercel response status:', response.status);
+    console.log('Vercel response data:', JSON.stringify(response.data, null, 2));
     console.log('Forward successful!');
 
   } catch (error) {
